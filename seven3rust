@@ -1,0 +1,100 @@
+use std::collections::BTreeMap;
+
+#[derive(Default)]
+pub struct MyToken {
+    name: String,
+    symbol: String,
+    decimals: u8,
+    total_supply: u64,
+    balances: BTreeMap<Address, u64>,
+    allowances: BTreeMap<Address, BTreeMap<Address, u64>>,
+}
+
+impl ERC20 for MyToken {
+    fn name(&self) -> String {
+        self.name.clone()
+    }
+
+    fn symbol(&self) -> String {
+        self.symbol.clone()
+    }
+
+    fn decimals(&self) -> u8 {
+        self.decimals
+    }
+
+    fn total_supply(&self) -> u64 {
+        self.total_supply
+    }
+
+    fn balance_of(&self, owner: Address) -> u64 {
+        *self.balances.get(&owner).unwrap_or(&0)
+    }
+
+    fn transfer(&mut self, to: Address, value: u64) -> bool {
+        let from = &msg.sender();
+        let from_balance = self.balances.get(&from).copied().unwrap_or_default();
+        let to_balance = self.balances.get(&to).copied().unwrap_or_default();
+        if from_balance < value {
+            return false;
+        }
+        self.balances.insert(*from, from_balance - value);
+        self.balances.insert(to, to_balance + value);
+        self.emit_transfer(*from, to, value);
+        true
+    }
+
+    fn allowance(&self, owner: Address, spender: Address) -> u64 {
+        *self.allowances.get(&owner).and_then(|allowances| allowances.get(&spender)).unwrap_or(&0)
+    }
+
+    fn approve(&mut self, spender: Address, value: u64) -> bool {
+        let owner = &msg.sender();
+        let allowances = self.allowances.entry(*owner).or_default();
+        allowances.insert(spender, value);
+        self.emit_approval(*owner, spender, value);
+        true
+    }
+
+    fn transfer_from(&mut self, from: Address, to: Address, value: u64) -> bool {
+        let spender = &msg.sender();
+        let from_balance = self.balances.get(&from).copied().unwrap_or_default();
+        let to_balance = self.balances.get(&to).copied().unwrap_or_default();
+        let allowed = self.allowance(from, *spender);
+        if from_balance < value || allowed < value {
+            return false;
+        }
+        self.allowances.entry(from).and_modify(|allowances| {
+            allowances.insert(*spender, allowed - value);
+        });
+        self.balances.insert(from, from_balance - value);
+        self.balances.insert(to, to_balance + value);
+        self.emit_transfer(from, to, value);
+        true
+    }
+}
+
+impl MyToken {
+    pub fn new(name: &str, symbol: &str, decimals: u8, initial_supply: u64) -> Self {
+        let mut balances = BTreeMap::new();
+        balances.insert(msg.sender(), initial_supply);
+        Self {
+            name: name.to_owned(),
+            symbol: symbol.to_owned(),
+            decimals,
+            total_supply: initial_supply,
+            balances,
+            allowances: BTreeMap::new(),
+        }
+    }
+
+    pub fn mint(&mut self, account: Address, amount: u64) {
+        let from = &msg.sender();
+        self.total_supply += amount;
+        self.balances.entry(account).and_modify(|balance| {
+            *balance += amount;
+        }).or_insert(amount);
+        self.emit_transfer(*from, account, amount);
+    }
+
+    pub fn burn
